@@ -1,6 +1,21 @@
 import streamlit as st
 import json
+import os
 from datetime import datetime
+from openai import OpenAI
+
+# ----------------------------
+# OpenAI client
+# ----------------------------
+@st.cache_resource
+def get_client():
+    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        st.error("⚠️ OPENAI_API_KEY not found in Streamlit secrets!")
+        st.stop()
+    return OpenAI(api_key=api_key)
+
+client = get_client()
 
 # ----------------------------
 # Page config
@@ -20,7 +35,7 @@ if "agent_trace" not in st.session_state:
 # Title
 # ----------------------------
 st.title("🧮 Math Mentor - AI Math Tutor")
-st.caption("RAG + Multi-Agent System with HITL and Memory (API-free demo mode)")
+st.caption("RAG + Multi-Agent System with HITL and Memory (OpenAI)")
 
 # ----------------------------
 # Sidebar
@@ -35,7 +50,6 @@ with st.sidebar:
 
     st.divider()
 
-    st.subheader("📊 System Stats")
     solved = len(st.session_state.memory)
     correct = len([m for m in st.session_state.memory if m.get("is_correct")])
     success_rate = (correct / max(solved, 1)) * 100
@@ -56,7 +70,7 @@ with st.sidebar:
 col1, col2 = st.columns([1, 1])
 
 # ----------------------------
-# Input column
+# Input
 # ----------------------------
 with col1:
     st.header("📝 Input")
@@ -71,17 +85,17 @@ with col1:
         )
 
     elif input_mode == "Image (OCR)":
-        st.info("OCR disabled in demo mode.")
+        st.info("OCR disabled in cloud demo.")
         user_input = st.text_area("Type the problem:", height=150)
 
     elif input_mode == "Audio (ASR)":
-        st.info("ASR disabled in demo mode.")
+        st.info("ASR disabled in cloud demo.")
         user_input = st.text_area("Type the problem:", height=150)
 
     solve_button = st.button("🚀 Solve Problem", type="primary", use_container_width=True)
 
 # ----------------------------
-# Solution column
+# Solution
 # ----------------------------
 with col2:
     st.header("✨ Solution")
@@ -92,94 +106,137 @@ with col2:
         with st.status("🤖 Processing...", expanded=True):
 
             # ----------------------------
-            # 1. Parser Agent (rule-based)
+            # 1. Parser Agent
             # ----------------------------
             st.write("🔍 **Parser Agent**")
-            parsed = {
-                "problem_text": user_input.strip(),
-                "topic": "probability" if "probability" in user_input.lower() else "general",
-                "variables": [],
-                "needs_clarification": False,
-            }
+
+            parser_prompt = f"""
+Parse the following math problem and return ONLY valid JSON.
+
+Problem:
+{user_input}
+
+Format:
+{{
+  "problem_text": "...",
+  "topic": "algebra/probability/calculus/linear_algebra",
+  "variables": [],
+  "needs_clarification": false
+}}
+"""
+
+            parser_response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": parser_prompt}],
+                temperature=0
+            )
+
+            parsed = json.loads(parser_response.choices[0].message.content)
             st.session_state.agent_trace.append(
                 {"agent": "Parser", "status": "complete", "data": parsed}
             )
 
             # ----------------------------
-            # 2. Router
-            # ----------------------------
-            st.write("🎯 **Intent Router**")
-            st.session_state.agent_trace.append(
-                {"agent": "Router", "status": "complete"}
-            )
-
-            # ----------------------------
-            # 3. RAG (static demo context)
+            # 2. RAG (lightweight demo)
             # ----------------------------
             st.write("📚 **RAG Retrieval**")
-            knowledge_context = """
-### Probability Reminder
-P(X = k) = C(n, k) · p^k · (1 − p)^(n − k)
 
-Common mistakes:
-- Wrong combination formula
-- Using incorrect p
+            knowledge_context = """
+Binomial Distribution:
+P(X=k) = C(n,k) p^k (1-p)^(n-k)
+
+Check:
+- n = trials
+- k = successes
+- p = probability
 """
             st.session_state.agent_trace.append(
                 {"agent": "RAG", "status": "complete"}
             )
 
             # ----------------------------
-            # 4. Solver Agent (deterministic placeholder)
+            # 3. Solver Agent
             # ----------------------------
             st.write("🧮 **Solver Agent**")
 
-            solution = f"""
+            solver_prompt = f"""
+Use the context below to solve step-by-step.
+
+Context:
+{knowledge_context}
+
+Problem:
+{parsed["problem_text"]}
+
+Return:
 ANSWER:
-This is a demo solution.
-
 STEPS:
-1. Identify the type of problem.
-2. Apply the relevant formula.
-3. Substitute values.
-4. Compute final result.
-
-NOTE:
-This deployment runs without external LLM APIs.
 """
 
+            solver_response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": solver_prompt}],
+                temperature=0.2
+            )
+
+            solution = solver_response.choices[0].message.content
             st.session_state.agent_trace.append(
                 {"agent": "Solver", "status": "complete"}
             )
 
             # ----------------------------
-            # 5. Verifier Agent (heuristic)
+            # 4. Verifier Agent
             # ----------------------------
             st.write("✅ **Verifier Agent**")
-            verification = {
-                "is_correct": True,
-                "confidence": 0.85,
-                "issues": [],
-                "needs_human_review": False,
-            }
+
+            verifier_prompt = f"""
+Verify the solution below. Output ONLY valid JSON.
+
+Problem:
+{parsed["problem_text"]}
+
+Solution:
+{solution}
+
+Format:
+{{
+  "is_correct": true,
+  "confidence": 0.0,
+  "issues": [],
+  "needs_human_review": false
+}}
+"""
+
+            verifier_response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": verifier_prompt}],
+                temperature=0
+            )
+
+            verification = json.loads(
+                verifier_response.choices[0].message.content
+            )
+
             st.session_state.agent_trace.append(
                 {"agent": "Verifier", "status": "complete", "data": verification}
             )
 
         # ----------------------------
-        # Output
+        # Display
         # ----------------------------
         st.divider()
 
-        with st.expander("🔍 Agent Execution Trace"):
+        with st.expander("🔍 Agent Trace"):
             for trace in st.session_state.agent_trace:
                 st.json(trace)
 
-        with st.expander("📚 Retrieved Knowledge"):
-            st.markdown(knowledge_context)
-
         st.subheader("📊 Solution")
-        st.success(f"✅ Verified (Confidence: {verification['confidence']:.0%})")
+
+        if verification["is_correct"]:
+            st.success(f"✅ Verified ({verification['confidence']:.0%})")
+        else:
+            st.error("❌ Issues detected")
+
         st.markdown(solution)
 
         # ----------------------------
@@ -231,4 +288,4 @@ if st.session_state.memory:
 # Footer
 # ----------------------------
 st.divider()
-st.caption("Math Mentor | API-free demo mode")
+st.caption("Math Mentor | OpenAI-powered deployment")
