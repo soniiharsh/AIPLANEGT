@@ -3,22 +3,20 @@ streamlit
 python-dotenv
 
 # LLM
-anthropic
 openai
 
-# RAG
+# RAG (LangChain v1 compatible)
 langchain
 langchain-community
+langchain-text-splitters
 chromadb
 sentence-transformers
 
-# Multimodal
+# Multimodal (OCR only – cloud safe)
 pytesseract
 Pillow
-# If whisper fails, comment it out and use the optional ASR processor
 
 # Tools
 numpy
 pandas
 sympy
-
