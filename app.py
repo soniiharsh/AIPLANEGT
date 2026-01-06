@@ -2,18 +2,18 @@ import streamlit as st
 import json
 import os
 from datetime import datetime
-from openai import OpenAI
+from groq import Groq
 
 # ----------------------------
-# OpenAI client
+# Groq client
 # ----------------------------
 @st.cache_resource
 def get_client():
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = st.secrets.get("GROQ_API_KEY")
     if not api_key:
-        st.error("⚠️ OPENAI_API_KEY not found in Streamlit secrets!")
+        st.error("⚠️ GROQ_API_KEY not found in Streamlit secrets!")
         st.stop()
-    return OpenAI(api_key=api_key)
+    return Groq(api_key=api_key)
 
 client = get_client()
 
@@ -35,7 +35,7 @@ if "agent_trace" not in st.session_state:
 # Title
 # ----------------------------
 st.title("🧮 Math Mentor - AI Math Tutor")
-st.caption("RAG + Multi-Agent System with HITL and Memory (OpenAI)")
+st.caption("RAG + Multi-Agent System with HITL and Memory (Groq)")
 
 # ----------------------------
 # Sidebar
@@ -119,14 +119,14 @@ Problem:
 Format:
 {{
   "problem_text": "...",
-  "topic": "algebra/probability/calculus/linear_algebra",
+  "topic": "arithmetic/algebra/probability/calculus",
   "variables": [],
   "needs_clarification": false
 }}
 """
 
             parser_response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="llama3-70b-8192",
                 messages=[{"role": "user", "content": parser_prompt}],
                 temperature=0
             )
@@ -142,13 +142,8 @@ Format:
             st.write("📚 **RAG Retrieval**")
 
             knowledge_context = """
-Binomial Distribution:
-P(X=k) = C(n,k) p^k (1-p)^(n-k)
-
-Check:
-- n = trials
-- k = successes
-- p = probability
+Basic Arithmetic:
+Total Cost = Cost per item × Number of items
 """
             st.session_state.agent_trace.append(
                 {"agent": "RAG", "status": "complete"}
@@ -174,7 +169,7 @@ STEPS:
 """
 
             solver_response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="llama3-70b-8192",
                 messages=[{"role": "user", "content": solver_prompt}],
                 temperature=0.2
             )
@@ -208,7 +203,7 @@ Format:
 """
 
             verifier_response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="llama3-70b-8192",
                 messages=[{"role": "user", "content": verifier_prompt}],
                 temperature=0
             )
@@ -288,4 +283,4 @@ if st.session_state.memory:
 # Footer
 # ----------------------------
 st.divider()
-st.caption("Math Mentor | OpenAI-powered deployment")
+st.caption("Math Mentor | Groq-powered deployment")

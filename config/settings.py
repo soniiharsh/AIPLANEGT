@@ -7,12 +7,12 @@ class Config:
     # ----------------------------
     # API Keys
     # ----------------------------
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
     # ----------------------------
     # Model Settings
     # ----------------------------
-    LLM_MODEL = "gpt-4.1-mini"
+    LLM_MODEL = "llama3-70b-8192"
     TEMPERATURE = 0.2
     MAX_TOKENS = 4000
 
