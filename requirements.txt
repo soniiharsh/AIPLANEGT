@@ -15,11 +15,10 @@ sentence-transformers
 # Multimodal
 pytesseract
 Pillow
-openai-whisper  # Added this!
 # If whisper fails, comment it out and use the optional ASR processor
 
 # Tools
 numpy
 pandas
 sympy
-openai-whisper
+
