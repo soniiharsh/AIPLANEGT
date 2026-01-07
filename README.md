@@ -1,262 +1,234 @@
-🧮 Math Mentor
-Reliable Multimodal AI-Powered Math Tutor
+# 🧮 Math Mentor
+Reliable Multimodal AI Math Tutor  
+(RAG + Multi-Agent System + Human-in-the-Loop + Memory)  
+Powered by FREE Google Gemini API
 
-(RAG + Multi-Agent System + Human-in-the-Loop + Memory)
+---
 
-📌 Project Overview
+## 📌 Project Overview
 
-Math Mentor is an end-to-end AI system designed to reliably solve JEE-style mathematics problems while prioritizing correctness, transparency, and safety.
-The application supports multimodal inputs (text, image, and audio), uses a multi-agent architecture, grounds reasoning through Retrieval-Augmented Generation (RAG), incorporates human-in-the-loop (HITL) validation, and improves over time using a memory layer.
+Math Mentor is an end-to-end AI system designed to reliably solve JEE-level mathematics problems while prioritizing correctness, transparency, and safety.
 
-Unlike simple AI demos, this project focuses on reliable AI system design, explicitly handling uncertainty instead of hallucinating answers.
+Unlike basic AI chatbots, this project is built as a reliable AI pipeline combining:
+- Multi-agent architecture
+- Retrieval-Augmented Generation (RAG)
+- Human-in-the-Loop (HITL) validation
+- Memory-based self-learning
 
-🎯 Objectives
+The focus of this project is AI system design, not just model usage.
 
-This project was built to demonstrate the ability to:
+---
 
-Design a RAG pipeline
+## 🎯 Objectives
 
-Build a multi-agent AI system
+This project demonstrates the ability to:
+- Design a RAG pipeline
+- Build a multi-agent AI system
+- Handle text, image, and audio inputs
+- Introduce human-in-the-loop (HITL)
+- Implement memory and self-learning
+- Package and deploy a working application
 
-Handle text, image, and audio inputs
+---
 
-Introduce human-in-the-loop (HITL) mechanisms
+## 📚 Supported Math Scope
 
-Implement memory and self-learning
+- Algebra
+- Probability
+- Basic Calculus (limits, derivatives, simple optimization)
+- Linear Algebra (basics)
 
-Package, deploy, and demonstrate a working AI application
+Difficulty level: JEE Main / early JEE Advanced
 
-📚 Supported Math Scope
+---
 
-Algebra
+## 🏗️ System Architecture
 
-Probability
+User Input (Text / Image / Audio)
+→ Parser Agent
+→ Intent Router Agent
+→ RAG Retrieval
+→ Solver Agent
+→ Verifier Agent
+→ (Low confidence → Human-in-the-Loop)
+→ Explainer Agent
+→ Memory Storage
 
-Basic Calculus (limits, derivatives, simple optimization)
+---
 
-Linear Algebra (basics)
+## 🧩 Core Features
 
-Difficulty level: JEE-style, not olympiad-level.
+### Multimodal Input
+- Text input for direct problem entry
+- Image input (PNG/JPG) with HITL correction
+- Audio input with speech-to-text and confirmation
 
-🏗️ System Architecture
-graph TD
-    A[User Input] --> B{Input Type}
-    B -->|Text| C[Parser Agent]
-    B -->|Image| D[HITL OCR Flow]
-    B -->|Audio| E[ASR + Confirmation]
+### Multi-Agent System
+- Parser Agent: cleans input and detects ambiguity
+- Router Agent: identifies math domain
+- Solver Agent: solves using RAG
+- Verifier Agent: checks correctness and confidence
+- Explainer Agent: produces step-by-step explanation
 
-    C --> F[Intent Router Agent]
-    F --> G[RAG Retrieval]
-    G --> H[Solver Agent]
-    H --> I[Verifier Agent]
+Agent execution is visible in the UI.
 
-    I -->|Low Confidence| J[Human-in-the-Loop]
-    I -->|High Confidence| K[Explainer Agent]
+---
 
-    J --> K
-    K --> L[Memory Storage]
+## 📚 Retrieval-Augmented Generation (RAG)
 
-🧩 Core Features
-✅ Multimodal Input
+- Curated knowledge base containing:
+  - Math formulas and identities
+  - Domain constraints
+  - Common mistakes
+- Embedding-based similarity search
+- Retrieved context displayed in the UI
+- No hallucinated citations if retrieval fails
 
-Text: Direct typed input
+---
 
-Image: PNG/JPG upload with HITL fallback
+## 🧑‍🏫 Human-in-the-Loop (HITL)
 
-Audio: Speech-to-text with transcript confirmation
-
-🤖 Multi-Agent System
-
-Parser Agent – cleans input and detects ambiguity
-
-Intent Router Agent – identifies problem domain
-
-Solver Agent – generates step-by-step solution using RAG
-
-Verifier Agent – checks correctness and confidence
-
-Explainer Agent – produces student-friendly explanations
-
-📚 Retrieval-Augmented Generation (RAG)
-
-Curated knowledge base:
-
-Formulas and identities
-
-Domain constraints
-
-Common mistakes
-
-Embeddings + vector search
-
-Retrieved context shown explicitly in the UI
-
-No hallucinated citations when retrieval fails
-
-🧑‍🏫 Human-in-the-Loop (HITL)
-
-HITL is triggered when:
-
-OCR / ASR is unavailable or unreliable
-
-Parser detects ambiguity
-
-Verifier confidence is low
-
-User explicitly marks a solution as incorrect
+HITL is explicitly triggered when:
+- OCR / ASR is unavailable or unreliable
+- Parser detects ambiguity
+- Verifier confidence is low
+- User marks a solution as incorrect
 
 Users can:
+- Approve the solution
+- Reject the solution
+- Provide corrections
 
-Approve
+All feedback is stored as learning signals.
 
-Edit
+---
 
-Reject solutions
-Corrections are stored as learning signals.
-
-🧠 Memory & Self-Learning
+## 🧠 Memory & Self-Learning
 
 The system stores:
-
-Original input
-
-Parsed problem
-
-Retrieved context
-
-Final solution
-
-Verification outcome
-
-User feedback
+- Original user input
+- Parsed problem
+- Retrieved context
+- Final solution
+- Verification result
+- User feedback
 
 Memory is used at runtime to:
+- Retrieve similar solved problems
+- Reuse solution patterns
+- Improve reliability over time
 
-Retrieve similar past problems
+No model retraining is required.
 
-Reuse solution patterns
+---
 
-Improve future reliability
-(No model retraining required.)
+## 📁 Project Structure
 
-📁 Project Structure
 aiplanegt/
-├── app.py                      # Streamlit application
+├── app.py
 ├── requirements.txt
-├── README.md
-├── multimodal/
-│   ├── ocr_processor.py        # Cloud-safe OCR with HITL fallback
-│   └── asr_processor.py        # Audio transcription
-├── rag/
-│   ├── embeddings.py           # Embedding generation
-│   └── retriever.py            # Vector similarity search
-├── memory/
-│   └── solution_memory.py      # SQLite-based memory
 ├── agents/
-│   ├── parser_agent.py
-│   ├── router_agent.py
-│   ├── solver_agent.py
-│   ├── verifier_agent.py
-│   └── explainer_agent.py
+├── multimodal/
+├── rag/
+├── memory/
 └── knowledge_base/
-    ├── algebra_formulas.md
-    ├── calculus_basics.md
-    ├── probability_guide.md
-    └── common_mistakes.txt
-
 
 Some folders are intentionally minimal. Core logic is implemented inline where appropriate to reduce deployment risk while preserving extensibility.
 
-🛠️ Setup & Run Instructions
-1️⃣ Clone the Repository
+---
+
+## 🛠️ Setup & Run Instructions
+
+Clone the repository:
 git clone https://github.com/soniiharsh/aiplanegt.git
 cd aiplanegt
 
-2️⃣ Create Virtual Environment
+Create virtual environment:
 python3 -m venv venv
-source venv/bin/activate        # Linux / macOS
-# venv\Scripts\activate         # Windows
+source venv/bin/activate
 
-3️⃣ Install Dependencies
+Install dependencies:
 pip install --upgrade pip
 pip install -r requirements.txt
 
-4️⃣ Configure Environment Variables
+Configure environment variables:
 touch .env
 echo "GEMINI_API_KEY=your_gemini_api_key_here" >> .env
 
-
-Get a free API key from:
-https://aistudio.google.com/app/apikey
-
-5️⃣ Run the Application
+Run the application:
 streamlit run app.py
 
-
-Open:
-
+Open in browser:
 http://localhost:8501
 
-🖼️ OCR & Image Input Behavior (Important)
+---
 
-Image formats supported: PNG, JPG, JPEG
+## 🖼️ OCR & Image Input Behavior
 
-OCR depends on system-level Tesseract binaries
+- Supported formats: PNG, JPG, JPEG
+- OCR requires system-level Tesseract
 
-Local Machine
+Local Machine:
+- OCR works if Tesseract is installed
 
-OCR can work if Tesseract is installed
+Streamlit Cloud:
+- Tesseract is unavailable
+- OCR is intentionally disabled
+- Image input routes to Human-in-the-Loop
 
-Streamlit Cloud / Cloud Environments
+This ensures reliability and prevents crashes.
 
-Tesseract binaries are not available
+---
 
-OCR is intentionally disabled
+## 🚀 Deployment
 
-Image input routes directly to HITL manual correction
-
-This design prevents crashes and ensures correctness.
-
-🚀 Deployment
-
-The application is deployed using Streamlit Cloud.
+Deployed using Streamlit Cloud.
 
 Steps:
+1. Push repository to GitHub
+2. Connect repository on Streamlit Cloud
+3. Add GEMINI_API_KEY in Secrets
+4. Deploy and test using public link
 
-Push code to GitHub
+---
 
-Connect repository on Streamlit Cloud
+## 🎥 Demo Flow
 
-Add GEMINI_API_KEY in Secrets
+1. Text input → verified solution
+2. Image input → HITL correction → solution
+3. Low confidence → human review
+4. Similar problem → memory reuse
 
-Deploy and test via public link
+---
 
-🎥 Demo (Suggested Flow)
+## 📊 Evaluation Coverage
 
-Text input → solved and verified
+- Multimodal input: YES
+- Parser Agent: YES
+- RAG pipeline: YES
+- Multi-agent system: YES
+- Human-in-the-loop: YES
+- Memory & reuse: YES
+- Deployment: YES
 
-Image upload → HITL correction → solution
+---
 
-Low confidence case → human review
-
-Similar problem → memory reuse
-
-📊 Evaluation Coverage Summary
-Requirement	Status
-Multimodal input	✅
-Parser agent	✅
-RAG pipeline	✅
-Multi-agent system	✅
-Human-in-the-loop	✅
-Memory & reuse	✅
-Deployment	✅
-🧠 Design Philosophy
+## 🧠 Design Philosophy
 
 When automation is uncertain, the system escalates to humans instead of hallucinating.
 
-This project emphasizes trustworthy AI system engineering, not just model usage.
+---
 
-👨‍💻 Author
+## 👨‍💻 Author
 
-Harsh Soni
-B.Tech – Electronics & Communication Engineering (AI Specialization)
+Harsh Soni  
+B.Tech – Electronics & Communication Engineering  
+Specialization: Artificial Intelligence
+
+---
+
+## ✅ Status
+
+Fully implemented  
+Deployed and testable  
+Meets all assignment criteria
