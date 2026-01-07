@@ -3,7 +3,8 @@ import json
 
 
 class ParserAgent:
-    def __init__(self, api_key, model="gemini-pro"):
+    def __init__(self, api_key, model="models/gemini-1.0-pro"
+):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model)
 
