@@ -1,316 +1,296 @@
 import streamlit as st
 import json
-import google.generativeai as genai  # ✅ CORRECT import
 import os
 from datetime import datetime
+import google.generativeai as genai
 
-# Configure Gemini (FREE!)
+# -------------------------------
+# Page Configuration
+# -------------------------------
+st.set_page_config(
+    page_title="Math Mentor",
+    page_icon="🧮",
+    layout="wide"
+)
+
+# -------------------------------
+# Gemini Configuration (FREE)
+# -------------------------------
 @st.cache_resource
-def get_gemini_model():
+def load_gemini():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        st.error("⚠️ GEMINI_API_KEY not found in secrets!")
-        st.info("Get free API key at: https://aistudio.google.com/app/apikey")
+        st.error("⚠️ GEMINI_API_KEY not found")
+        st.info("Get a free key from: https://aistudio.google.com/app/apikey")
         st.stop()
-    
+
     genai.configure(api_key=api_key)
-    
-    # Use the latest and best free model
-    # gemini-2.5-flash = Newest, fastest, best quality
-    return genai.GenerativeModel('models/gemini-2.5-flash')
+    return genai.GenerativeModel("models/gemini-2.5-flash")
 
-model = get_gemini_model()
+model = load_gemini()
 
-# Helper function to call Gemini
-def call_gemini(prompt):
-    """Call Gemini API with error handling"""
+def call_gemini(prompt, max_tokens=2000):
     try:
         response = model.generate_content(
             prompt,
             generation_config={
-                'temperature': 0.2,
-                'max_output_tokens': 2000,
+                "temperature": 0.2,
+                "max_output_tokens": max_tokens,
             }
         )
         return response.text
     except Exception as e:
-        st.error(f"API Error: {e}")
+        st.error(f"Gemini API error: {e}")
         return None
 
-# Session state initialization
-if 'memory' not in st.session_state:
+# -------------------------------
+# Session State
+# -------------------------------
+if "memory" not in st.session_state:
     st.session_state.memory = []
-if 'agent_trace' not in st.session_state:
+
+if "agent_trace" not in st.session_state:
     st.session_state.agent_trace = []
 
-# Page config
-st.set_page_config(page_title="Math Mentor", page_icon="🧮", layout="wide")
+if "show_feedback" not in st.session_state:
+    st.session_state.show_feedback = False
 
-# Title
-st.title("🧮 Math Mentor - AI Math Tutor")
-st.caption("RAG + Multi-Agent System with HITL and Memory (Powered by FREE Gemini API)")
+# -------------------------------
+# Header
+# -------------------------------
+st.title("🧮 Math Mentor")
+st.caption("Reliable AI Math Tutor | RAG + Agents + HITL + Memory (FREE Gemini API)")
 
+# -------------------------------
 # Sidebar
+# -------------------------------
 with st.sidebar:
     st.header("⚙️ Settings")
+
     input_mode = st.radio(
-        "Input Mode:",
-        ["Text", "Image (OCR)", "Audio (ASR)"],
-        help="Choose how to input your math problem"
+        "Input Mode",
+        ["Text", "Image (OCR)", "Audio (ASR)"]
     )
-    
+
     st.divider()
-    
-    st.subheader("📊 System Stats")
-    st.metric("Problems Solved", len(st.session_state.memory))
-    success_rate = len([m for m in st.session_state.memory if m.get('is_correct')]) / max(len(st.session_state.memory), 1) * 100
+
+    solved = len(st.session_state.memory)
+    correct = len([m for m in st.session_state.memory if m.get("is_correct")])
+    success_rate = (correct / max(solved, 1)) * 100
+
+    st.metric("Problems Solved", solved)
     st.metric("Success Rate", f"{success_rate:.0f}%")
-    
+
     st.divider()
-    
-    st.info("🆓 Using FREE Gemini API\n\nNo credit card needed!")
-    
+
+    st.info("🆓 Powered by FREE Google Gemini API")
+
     if st.button("🗑️ Clear Memory"):
-        st.session_state.memory = []
-        st.session_state.agent_trace = []
+        st.session_state.memory.clear()
+        st.session_state.agent_trace.clear()
         st.rerun()
 
-# Main layout
+# -------------------------------
+# Main Layout
+# -------------------------------
 col1, col2 = st.columns([1, 1])
 
+# ===============================
+# INPUT COLUMN
+# ===============================
 with col1:
     st.header("📝 Input")
-    
+
     user_input = None
-    
+
     if input_mode == "Text":
         user_input = st.text_area(
-            "Enter your math problem:",
+            "Enter the math problem",
             height=200,
-            placeholder="e.g., A coin is tossed 5 times. What is the probability of getting exactly 3 heads?",
-            key="text_input"
+            placeholder="A coin is tossed 5 times. Find the probability of exactly 3 heads."
         )
-    
-    elif input_mode == "Image (OCR)":
-        st.info("📷 OCR functionality requires additional setup. Using text input for now.")
-        uploaded_file = st.file_uploader("Upload image", type=["jpg", "png", "jpeg"])
-        
-        if uploaded_file:
-            st.image(uploaded_file, caption="Uploaded Image")
-            st.warning("⚠️ OCR not configured. Please type the problem below:")
-            user_input = st.text_area("Type the problem:", height=150)
-    
-    elif input_mode == "Audio (ASR)":
-        st.info("🎤 Audio functionality requires additional setup. Using text input for now.")
-        user_input = st.text_area("Type the problem:", height=150)
-    
-    solve_button = st.button("🚀 Solve Problem", type="primary", use_container_width=True)
 
+    elif input_mode == "Image (OCR)":
+        st.warning("OCR stub active (HITL enabled)")
+        st.file_uploader("Upload image", type=["jpg", "png"])
+        user_input = st.text_area("Type / correct extracted text")
+
+    elif input_mode == "Audio (ASR)":
+        st.warning("ASR stub active (HITL enabled)")
+        st.file_uploader("Upload audio", type=["mp3", "wav"])
+        user_input = st.text_area("Type / correct transcript")
+
+    solve_clicked = st.button("🚀 Solve", type="primary", use_container_width=True)
+
+# ===============================
+# SOLUTION COLUMN
+# ===============================
 with col2:
     st.header("✨ Solution")
-    
-    if solve_button and user_input:
-        st.session_state.agent_trace = []
-        
-        # Agent execution with status
-        with st.status("🤖 Processing with Free Gemini API...", expanded=True) as status:
-            
+
+    if solve_clicked and user_input:
+        st.session_state.agent_trace.clear()
+
+        with st.status("🤖 Running multi-agent pipeline...", expanded=True) as status:
+
+            # ---------------------------
             # 1. Parser Agent
-            st.write("🔍 **Parser Agent**: Analyzing problem...")
-            st.session_state.agent_trace.append({"agent": "Parser", "status": "processing"})
-            
-            parser_prompt = f"""Parse this math problem and output ONLY valid JSON (no markdown, no code blocks):
+            # ---------------------------
+            st.write("🔍 Parser Agent")
+            parser_prompt = f"""
+Parse the following math problem into JSON only.
 
-Problem: {user_input}
+Problem:
+{user_input}
 
-Output format:
+Output JSON schema:
 {{
-  "problem_text": "cleaned problem statement",
-  "topic": "algebra/probability/calculus/linear_algebra",
-  "variables": ["list", "of", "variables"],
+  "problem_text": "...",
+  "topic": "algebra | probability | calculus | linear_algebra",
+  "variables": [],
   "needs_clarification": false,
   "clarification_reason": ""
 }}
-
-Return ONLY the JSON, nothing else."""
-
-            parser_text = call_gemini(parser_prompt)
-            
-            if parser_text:
-                try:
-                    # Clean up response
-                    parser_text = parser_text.strip()
-                    if "```json" in parser_text:
-                        parser_text = parser_text.split("```json")[1].split("```")[0].strip()
-                    elif "```" in parser_text:
-                        parser_text = parser_text.split("```")[1].split("```")[0].strip()
-                    
-                    parsed = json.loads(parser_text)
-                    st.session_state.agent_trace.append({"agent": "Parser", "status": "complete", "data": parsed})
-                    st.success(f"✅ Topic: {parsed['topic']}")
-                    
-                except Exception as e:
-                    st.warning(f"Parser JSON error: {e}")
-                    parsed = {
-                        "problem_text": user_input,
-                        "topic": "unknown",
-                        "variables": [],
-                        "needs_clarification": False
-                    }
-            else:
-                parsed = {"problem_text": user_input, "topic": "unknown", "variables": [], "needs_clarification": False}
-            
-            # 2. Intent Router
-            st.write("🎯 **Intent Router**: Routing to solver...")
-            st.session_state.agent_trace.append({"agent": "Router", "status": "complete"})
-            
-            # 3. RAG Retrieval (Simulated)
-            st.write("📚 **RAG**: Retrieving knowledge...")
-            knowledge_context = f"""
-# {parsed.get('topic', 'Math').title()} Knowledge Base
-
-## Key Formulas and Concepts
-
-### Probability
-- Binomial: P(X=k) = C(n,k) × p^k × (1-p)^(n-k)
-- Combinations: C(n,k) = n! / (k!(n-k)!)
-- Constraints: 0 ≤ p ≤ 1, probabilities sum to 1
-
-### Algebra
-- Quadratic formula: x = [-b ± √(b²-4ac)] / 2a
-- Factor theorem: (x-a) is a factor if f(a) = 0
-- Domain restrictions: Check denominators ≠ 0
-
-### Calculus
-- Power rule: d/dx(x^n) = n·x^(n-1)
-- Chain rule: d/dx(f(g(x))) = f'(g(x))·g'(x)
-- Product rule: d/dx(uv) = u'v + uv'
-
-## Common Mistakes to Avoid
-- Forgetting to simplify fractions
-- Not checking domain/range
-- Calculation errors with negatives
-- Confusing formulas
 """
-            st.session_state.agent_trace.append({"agent": "RAG", "status": "complete"})
-            
-            # 4. Solver Agent
-            st.write("🧮 **Solver Agent**: Computing solution...")
-            
-            solver_prompt = f"""You are an expert math tutor. Solve this problem step-by-step.
+            parser_raw = call_gemini(parser_prompt, 800)
 
-KNOWLEDGE BASE:
+            try:
+                parser_raw = parser_raw.strip()
+                if "```" in parser_raw:
+                    parser_raw = parser_raw.split("```")[1]
+                parsed = json.loads(parser_raw)
+            except:
+                parsed = {
+                    "problem_text": user_input,
+                    "topic": "unknown",
+                    "variables": [],
+                    "needs_clarification": False
+                }
+
+            st.session_state.agent_trace.append(
+                {"agent": "Parser", "output": parsed}
+            )
+
+            if parsed.get("needs_clarification"):
+                st.error(f"Needs clarification: {parsed.get('clarification_reason')}")
+                status.update(state="error")
+                st.stop()
+
+            # ---------------------------
+            # 2. Router Agent
+            # ---------------------------
+            st.write("🧭 Router Agent")
+            route = parsed.get("topic", "math")
+            st.session_state.agent_trace.append(
+                {"agent": "Router", "route": route}
+            )
+
+            # ---------------------------
+            # 3. RAG (Simulated but Explicit)
+            # ---------------------------
+            st.write("📚 RAG Retrieval")
+            knowledge_context = f"""
+Topic: {route}
+
+Key formulas and rules relevant to this topic.
+Check constraints, domains, and common mistakes.
+"""
+            st.session_state.agent_trace.append(
+                {"agent": "RAG", "status": "retrieved"}
+            )
+
+            # ---------------------------
+            # 4. Solver Agent
+            # ---------------------------
+            st.write("🧮 Solver Agent")
+            solver_prompt = f"""
+Solve the problem step by step.
+
+Context:
 {knowledge_context}
 
-PROBLEM: {parsed['problem_text']}
+Problem:
+{parsed['problem_text']}
 
-Provide your solution in this EXACT format:
-
-ANSWER: [write the final answer here]
-
+Format:
+ANSWER:
 STEPS:
-1. [first step with explanation]
-2. [second step with explanation]
-3. [continue with all steps needed]
-
 FORMULAS USED:
-- [list formulas/concepts used]
+"""
+            solution = call_gemini(solver_prompt, 2000)
 
-Be thorough and show all work."""
+            st.session_state.agent_trace.append(
+                {"agent": "Solver", "status": "complete"}
+            )
 
-            solution = call_gemini(solver_prompt)
-            
-            if solution:
-                st.session_state.agent_trace.append({"agent": "Solver", "status": "complete"})
-            else:
-                solution = "Error: Could not generate solution"
-            
+            # ---------------------------
             # 5. Verifier Agent
-            st.write("✅ **Verifier Agent**: Checking correctness...")
-            
-            verifier_prompt = f"""Verify this math solution. Output ONLY valid JSON (no markdown):
+            # ---------------------------
+            st.write("✅ Verifier Agent")
+            verifier_prompt = f"""
+Verify the solution below.
 
-PROBLEM: {parsed['problem_text']}
-SOLUTION: {solution}
+Problem:
+{parsed['problem_text']}
 
-Check for:
-- Mathematical correctness
-- Calculation accuracy
-- Domain/constraint validity
-- Common mistakes
+Solution:
+{solution}
 
-Output format:
+Output JSON only:
 {{
-  "is_correct": true or false,
-  "confidence": 0.0 to 1.0,
-  "issues": ["list any issues found"],
-  "needs_human_review": true or false
+  "is_correct": true,
+  "confidence": 0.0,
+  "issues": [],
+  "needs_human_review": false
 }}
+"""
+            verifier_raw = call_gemini(verifier_prompt, 800)
 
-Return ONLY the JSON."""
-
-            verifier_text = call_gemini(verifier_prompt)
-            
             try:
-                if verifier_text:
-                    verifier_text = verifier_text.strip()
-                    if "```json" in verifier_text:
-                        verifier_text = verifier_text.split("```json")[1].split("```")[0].strip()
-                    elif "```" in verifier_text:
-                        verifier_text = verifier_text.split("```")[1].split("```")[0].strip()
-                    
-                    verification = json.loads(verifier_text)
-                    st.session_state.agent_trace.append({"agent": "Verifier", "status": "complete", "data": verification})
-                else:
-                    raise Exception("No response")
-                    
-            except Exception as e:
+                if "```" in verifier_raw:
+                    verifier_raw = verifier_raw.split("```")[1]
+                verification = json.loads(verifier_raw)
+            except:
                 verification = {
                     "is_correct": True,
                     "confidence": 0.7,
                     "issues": [],
                     "needs_human_review": False
                 }
-            
-            status.update(label="✅ Complete!", state="complete")
-        
-        # Display Results
-        st.divider()
-        
-        # Agent Trace
-        with st.expander("🔍 Agent Execution Trace", expanded=False):
-            for trace in st.session_state.agent_trace:
-                st.json(trace)
-        
-        # Retrieved Context
-        with st.expander("📚 Retrieved Knowledge", expanded=False):
-            st.code(knowledge_context, language="markdown")
-        
-        # Solution
-        st.subheader("📊 Solution")
-        
-        confidence = verification.get("confidence", 0.7)
-        if verification.get("is_correct"):
-            st.success(f"✅ Verified (Confidence: {confidence:.0%})")
+
+            st.session_state.agent_trace.append(
+                {"agent": "Verifier", "output": verification}
+            )
+
+            status.update(label="✅ Complete", state="complete")
+
+        # ---------------------------
+        # OUTPUT
+        # ---------------------------
+        st.subheader("📊 Result")
+
+        if verification["is_correct"]:
+            st.success(f"Verified (Confidence {verification['confidence']:.0%})")
         else:
-            st.warning(f"⚠️ Issues detected (Confidence: {confidence:.0%})")
-            if verification.get("issues"):
-                for issue in verification["issues"]:
-                    st.error(f"- {issue}")
-        
+            st.warning("Verification issues detected")
+            for issue in verification.get("issues", []):
+                st.error(issue)
+
         st.markdown(solution)
-        
-        # HITL Section
+
+        # ---------------------------
+        # HITL FEEDBACK
+        # ---------------------------
         st.divider()
-        st.subheader("💬 Feedback")
-        
-        if verification.get("needs_human_review") or confidence < 0.8:
-            st.warning("🔍 This solution needs human review")
-        
+        st.subheader("💬 Human Feedback")
+
+        if verification.get("needs_human_review") or verification["confidence"] < 0.8:
+            st.warning("Human review recommended")
+
         col_a, col_b = st.columns(2)
-        
+
         with col_a:
-            if st.button("✅ Correct", use_container_width=True):
+            if st.button("✅ Correct"):
                 st.session_state.memory.append({
                     "timestamp": datetime.now().isoformat(),
                     "input": user_input,
@@ -319,15 +299,14 @@ Return ONLY the JSON."""
                     "verification": verification,
                     "is_correct": True
                 })
-                st.success("✅ Thanks! Stored in memory.")
-                st.balloons()
-        
+                st.success("Stored as correct")
+
         with col_b:
-            if st.button("❌ Incorrect", use_container_width=True):
+            if st.button("❌ Incorrect"):
                 st.session_state.show_feedback = True
-        
-        if st.session_state.get("show_feedback"):
-            feedback = st.text_area("What's wrong? (optional)", key="feedback_input")
+
+        if st.session_state.show_feedback:
+            feedback = st.text_area("What was incorrect?")
             if st.button("Submit Feedback"):
                 st.session_state.memory.append({
                     "timestamp": datetime.now().isoformat(),
@@ -338,24 +317,26 @@ Return ONLY the JSON."""
                     "is_correct": False,
                     "feedback": feedback
                 })
-                st.success("📝 Feedback recorded. Thank you!")
                 st.session_state.show_feedback = False
+                st.success("Feedback recorded")
                 st.rerun()
 
-# Memory section
+# -------------------------------
+# MEMORY VIEW
+# -------------------------------
 if st.session_state.memory:
     st.divider()
-    st.subheader("🧠 Solution Memory")
-    
-    with st.expander(f"📜 View Past Solutions ({len(st.session_state.memory)} total)"):
-        for idx, mem in enumerate(reversed(st.session_state.memory)):
-            status_icon = "✅" if mem.get("is_correct") else "❌"
-            st.markdown(f"**{status_icon} Problem {len(st.session_state.memory) - idx}** ({mem.get('timestamp', 'N/A')[:16]})")
-            st.text(mem.get("input", "")[:100] + "...")
-            if st.button(f"View Details", key=f"view_{idx}"):
-                st.json(mem)
+    st.subheader("🧠 Memory")
+
+    with st.expander("View past attempts"):
+        for m in reversed(st.session_state.memory):
+            icon = "✅" if m["is_correct"] else "❌"
+            st.markdown(f"{icon} **{m['timestamp'][:19]}**")
+            st.text(m["input"][:120])
             st.divider()
 
-# Footer
+# -------------------------------
+# FOOTER
+# -------------------------------
 st.divider()
-st.caption("🧮 Math Mentor v1.0 | Powered by FREE Google Gemini API 🆓")
+st.caption("Math Mentor • Reliable AI Systems Demo • 2026")
