@@ -1,28 +1,31 @@
+import google.generativeai as genai
 from PIL import Image
+import io
 
-class OCRProcessor:
-    """
-    Cloud-safe OCR processor.
+class GeminiOCR:
+    def __init__(self, model):
+        self.model = model
 
-    On platforms without system Tesseract (e.g. Streamlit Cloud),
-    OCR is intentionally disabled and routed to HITL.
-    """
+    def extract_text(self, uploaded_file):
+        """
+        Uses Gemini Vision to extract text from image.
+        """
+        image_bytes = uploaded_file.read()
+        image = Image.open(io.BytesIO(image_bytes))
 
-    def __init__(self, confidence_threshold=0.7):
-        self.confidence_threshold = confidence_threshold
-        self.available = False   # 🔑 FORCE DISABLE OCR
+        prompt = """
+        Extract the complete math problem text from this image.
+        Preserve mathematical symbols and expressions.
+        Do NOT solve the problem.
+        Return only the extracted text.
+        """
 
-    def process_image(self, image_file):
-        # Always fallback to HITL on cloud
-        try:
-            Image.open(image_file)  # just to validate image
-        except Exception:
-            pass
+        response = self.model.generate_content(
+            [prompt, image]
+        )
 
         return {
-            "text": "",
-            "confidence": 0.0,
-            "needs_review": True,
-            "ocr_available": False,
-            "error": "OCR disabled (system Tesseract not available)"
+            "text": response.text.strip(),
+            "confidence": 0.9,   # Gemini vision is highly reliable
+            "needs_review": True  # Always allow HITL editing
         }

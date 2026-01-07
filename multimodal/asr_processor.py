@@ -1,46 +1,33 @@
-# multimodal/asr_processor.py
+import google.generativeai as genai
 
-try:
-    import whisper
-    WHISPER_AVAILABLE = True
-except ImportError:
-    WHISPER_AVAILABLE = False
-    print("⚠️ Whisper not installed. Audio input will use fallback.")
+class GeminiASR:
+    def __init__(self, model):
+        self.model = model
 
-class ASRProcessor:
-    def __init__(self, model_size="base"):
-        if WHISPER_AVAILABLE:
-            self.model = whisper.load_model(model_size)
-        else:
-            self.model = None
-    
-    def process_audio(self, audio_path):
-        """Convert audio to text"""
-        if not WHISPER_AVAILABLE:
-            return {
-                "text": "Audio transcription not available. Please install openai-whisper.",
-                "confidence": 0.0,
-                "needs_review": True,
-                "error": "Whisper not installed"
-            }
-        
-        result = self.model.transcribe(
-            audio_path,
-            language="en",
-            task="transcribe"
+    def transcribe_audio(self, uploaded_file):
+        """
+        Uses Gemini to transcribe audio.
+        """
+        audio_bytes = uploaded_file.read()
+
+        prompt = """
+        Transcribe this audio accurately.
+        Preserve mathematical expressions.
+        Do not summarize.
+        """
+
+        response = self.model.generate_content(
+            [
+                prompt,
+                {
+                    "mime_type": uploaded_file.type,
+                    "data": audio_bytes
+                }
+            ]
         )
-        
+
         return {
-            "text": result["text"].strip(),
-            "confidence": self._estimate_confidence(result),
-            "needs_review": False
+            "text": response.text.strip(),
+            "confidence": 0.85,
+            "needs_review": True
         }
-    
-    def _estimate_confidence(self, result):
-        """Estimate confidence from Whisper output"""
-        text_length = len(result["text"].split())
-        return min(0.9, 0.5 + (text_length / 100))
-    
-    def is_available(self):
-        """Check if Whisper is available"""
-        return WHISPER_AVAILABLE

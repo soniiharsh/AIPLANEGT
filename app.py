@@ -3,22 +3,21 @@ import json
 import os
 from datetime import datetime
 import google.generativeai as genai
+from PIL import Image
+import io
 
-from multimodal.ocr_processor import OCRProcessor
-from multimodal.asr_processor import ASRProcessor
-
-# -------------------------------------------------
-# Page Config
-# -------------------------------------------------
+# =================================================
+# PAGE CONFIG
+# =================================================
 st.set_page_config(
     page_title="Math Mentor",
     page_icon="🧮",
     layout="wide"
 )
 
-# -------------------------------------------------
-# Gemini Setup (FREE)
-# -------------------------------------------------
+# =================================================
+# GEMINI SETUP (FREE)
+# =================================================
 @st.cache_resource
 def load_gemini():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -33,31 +32,18 @@ def load_gemini():
 model = load_gemini()
 
 def call_gemini(prompt, max_tokens=2000):
-    try:
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.2,
-                "max_output_tokens": max_tokens
-            }
-        )
-        return response.text
-    except Exception as e:
-        st.error(f"Gemini API error: {e}")
-        return None
+    response = model.generate_content(
+        prompt,
+        generation_config={
+            "temperature": 0.2,
+            "max_output_tokens": max_tokens
+        }
+    )
+    return response.text
 
-# -------------------------------------------------
-# Load OCR / ASR (SAFE)
-# -------------------------------------------------
-@st.cache_resource
-def load_processors():
-    return OCRProcessor(), ASRProcessor()
-
-ocr, asr = load_processors()
-
-# -------------------------------------------------
-# Session State
-# -------------------------------------------------
+# =================================================
+# SESSION STATE
+# =================================================
 if "memory" not in st.session_state:
     st.session_state.memory = []
 
@@ -67,15 +53,15 @@ if "agent_trace" not in st.session_state:
 if "show_feedback" not in st.session_state:
     st.session_state.show_feedback = False
 
-# -------------------------------------------------
-# Header
-# -------------------------------------------------
+# =================================================
+# HEADER
+# =================================================
 st.title("🧮 Math Mentor")
-st.caption("Reliable AI Math Tutor • RAG + Agents + HITL + Memory (FREE Gemini)")
+st.caption("Reliable AI Math Tutor • RAG + Agents + HITL + Memory (Gemini Multimodal)")
 
-# -------------------------------------------------
-# Sidebar
-# -------------------------------------------------
+# =================================================
+# SIDEBAR
+# =================================================
 with st.sidebar:
     st.header("⚙️ Settings")
 
@@ -94,16 +80,16 @@ with st.sidebar:
     st.metric("Success Rate", f"{success_rate:.0f}%")
 
     st.divider()
-    st.info("🆓 Powered by FREE Google Gemini API")
+    st.info("🆓 Powered by Google Gemini Multimodal API")
 
     if st.button("🗑️ Clear Memory"):
         st.session_state.memory.clear()
         st.session_state.agent_trace.clear()
         st.rerun()
 
-# -------------------------------------------------
-# Layout
-# -------------------------------------------------
+# =================================================
+# LAYOUT
+# =================================================
 col1, col2 = st.columns([1, 1])
 
 # =================================================
@@ -113,6 +99,7 @@ with col1:
     st.header("📝 Input")
     user_input = None
 
+    # ---------------- TEXT ----------------
     if input_mode == "Text":
         user_input = st.text_area(
             "Enter math problem",
@@ -120,56 +107,68 @@ with col1:
             placeholder="A coin is tossed 5 times. Find probability of exactly 3 heads."
         )
 
+    # ---------------- IMAGE (GEMINI OCR) ----------------
     elif input_mode == "Image (OCR)":
-        uploaded_file = st.file_uploader(
+        uploaded_image = st.file_uploader(
             "Upload image",
             type=["jpg", "png", "jpeg"]
         )
 
-        if uploaded_file:
-            st.image(uploaded_file, caption="Uploaded Image")
+        if uploaded_image:
+            st.image(uploaded_image, caption="Uploaded Image")
 
-            with st.spinner("Attempting OCR..."):
-                ocr_result = ocr.process_image(uploaded_file)
+            with st.spinner("Extracting text using Gemini Vision..."):
+                image_bytes = uploaded_image.read()
+                image = Image.open(io.BytesIO(image_bytes))
 
-            # 🔑 CRITICAL: handle missing Tesseract
-            if not ocr_result.get("ocr_available", True):
-                st.warning(
-                    "OCR engine not available in this environment.\n\n"
-                    "Please type the problem manually (HITL enabled)."
-                )
+                ocr_prompt = """
+Extract the complete math problem text from this image.
+Preserve mathematical symbols.
+Do NOT solve the problem.
+Return only the extracted text.
+"""
+                ocr_response = model.generate_content([ocr_prompt, image])
 
-                user_input = st.text_area(
-                    "Type the problem from the image:",
-                    height=180
-                )
+            st.warning("OCR completed. Please review (HITL enabled).")
 
-            else:
-                if ocr_result["needs_review"]:
-                    st.warning(
-                        f"Low OCR confidence ({ocr_result['confidence']:.2f}). "
-                        "Please review extracted text."
-                    )
+            user_input = st.text_area(
+                "Extracted Text",
+                value=ocr_response.text.strip(),
+                height=180
+            )
 
-                user_input = st.text_area(
-                    "Extracted text (edit if needed)",
-                    value=ocr_result["text"],
-                    height=180
-                )
-
+    # ---------------- AUDIO (GEMINI ASR) ----------------
     elif input_mode == "Audio (ASR)":
         audio_file = st.file_uploader(
             "Upload audio",
-            type=["mp3", "wav", "m4a"]
+            type=["wav", "mp3", "m4a"]
         )
 
         if audio_file:
-            with st.spinner("Transcribing audio..."):
-                asr_result = asr.process_audio(audio_file)
+            with st.spinner("Transcribing audio using Gemini..."):
+                audio_bytes = audio_file.read()
+
+                asr_prompt = """
+Transcribe this audio accurately.
+Preserve mathematical expressions.
+Do NOT summarize.
+"""
+
+                asr_response = model.generate_content(
+                    [
+                        asr_prompt,
+                        {
+                            "mime_type": audio_file.type,
+                            "data": audio_bytes
+                        }
+                    ]
+                )
+
+            st.warning("Audio transcription completed. Please review (HITL enabled).")
 
             user_input = st.text_area(
-                "Transcript (edit if needed)",
-                value=asr_result["text"],
+                "Transcript",
+                value=asr_response.text.strip(),
                 height=180
             )
 
@@ -190,9 +189,7 @@ with col2:
 
         with st.status("🤖 Running multi-agent pipeline...", expanded=True):
 
-            # -------------------------------
-            # Parser Agent
-            # -------------------------------
+            # ---------------- PARSER AGENT ----------------
             st.write("🔍 Parser Agent")
             parser_prompt = f"""
 Parse the following math problem into JSON ONLY.
@@ -231,31 +228,18 @@ JSON format:
                 st.error(parsed["clarification_reason"])
                 st.stop()
 
-            # -------------------------------
-            # Router Agent
-            # -------------------------------
+            # ---------------- ROUTER ----------------
             st.write("🧭 Router Agent")
             route = parsed.get("topic", "math")
-            st.session_state.agent_trace.append(
-                {"agent": "Router", "route": route}
-            )
 
-            # -------------------------------
-            # RAG (Explicit Context)
-            # -------------------------------
+            # ---------------- RAG ----------------
             st.write("📚 RAG Retrieval")
             knowledge_context = f"""
 Topic: {route}
-
-Use relevant formulas, constraints, and common mistakes.
+Use correct formulas, constraints, and common mistakes.
 """
-            st.session_state.agent_trace.append(
-                {"agent": "RAG", "status": "retrieved"}
-            )
 
-            # -------------------------------
-            # Solver Agent
-            # -------------------------------
+            # ---------------- SOLVER ----------------
             st.write("🧮 Solver Agent")
             solver_prompt = f"""
 Solve step by step.
@@ -273,13 +257,7 @@ FORMULAS USED:
 """
             solution = call_gemini(solver_prompt, 2000)
 
-            st.session_state.agent_trace.append(
-                {"agent": "Solver", "status": "complete"}
-            )
-
-            # -------------------------------
-            # Verifier Agent
-            # -------------------------------
+            # ---------------- VERIFIER ----------------
             st.write("✅ Verifier Agent")
             verifier_prompt = f"""
 Verify the solution below.
@@ -312,13 +290,7 @@ Return JSON only:
                     "needs_human_review": False
                 }
 
-            st.session_state.agent_trace.append(
-                {"agent": "Verifier", "output": verification}
-            )
-
-        # -------------------------------
-        # OUTPUT
-        # -------------------------------
+        # ---------------- OUTPUT ----------------
         st.subheader("📊 Result")
 
         if verification["is_correct"]:
@@ -330,9 +302,7 @@ Return JSON only:
 
         st.markdown(solution)
 
-        # -------------------------------
-        # HITL FEEDBACK
-        # -------------------------------
+        # ---------------- HITL ----------------
         st.divider()
         st.subheader("💬 Human Feedback")
 
@@ -373,9 +343,9 @@ Return JSON only:
                 st.success("Feedback recorded")
                 st.rerun()
 
-# -------------------------------------------------
+# =================================================
 # MEMORY VIEW
-# -------------------------------------------------
+# =================================================
 if st.session_state.memory:
     st.divider()
     st.subheader("🧠 Memory")
@@ -387,8 +357,8 @@ if st.session_state.memory:
             st.text(m["input"][:120])
             st.divider()
 
-# -------------------------------------------------
-# Footer
-# -------------------------------------------------
+# =================================================
+# FOOTER
+# =================================================
 st.divider()
-st.caption("Math Mentor • Reliable AI Systems Demo • 2026")
+st.caption("Math Mentor • Reliable Multimodal AI System • 2026")
