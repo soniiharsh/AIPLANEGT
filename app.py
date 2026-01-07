@@ -14,7 +14,7 @@ def get_gemini_model():
         st.stop()
     
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-1.5-flash')  # Free tier
+    return genai.GenerativeModel('gemini-pro')  # Free tier
 
 model = get_gemini_model()
 
