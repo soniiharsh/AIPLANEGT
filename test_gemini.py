@@ -1,11 +1,11 @@
 from google import genai
 import os
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-response = client.models.generate_content(
+resp = client.models.generate_content(
     model="gemini-1.5-flash",
-    contents="Say OK"
+    contents="OK"
 )
 
-print(response.text)
+print(resp.text)
