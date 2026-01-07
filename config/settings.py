@@ -7,12 +7,15 @@ class Config:
     # ----------------------------
     # API Keys
     # ----------------------------
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
     # ----------------------------
-    # Model Settings
+    # Gemini Model Settings
     # ----------------------------
-    LLM_MODEL = "llama3-70b-8192"
+    LLM_MODEL = "gemini-1.5-flash"   # fast, free-tier friendly
+    # Alternative (higher reasoning, slower/costlier):
+    # LLM_MODEL = "gemini-1.5-pro"
+
     TEMPERATURE = 0.2
     MAX_TOKENS = 4000
 
