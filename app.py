@@ -14,7 +14,9 @@ def get_gemini_model():
         st.stop()
     
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel("models/gemini-1.0-pro")  # Free tier
+    # Use the latest free model - gemini-1.5-flash or gemini-1.5-pro
+    return genai.GenerativeModel('gemini-1.5-flash')  # Free & fast
+    # OR use: genai.GenerativeModel('gemini-1.5-pro') for better quality
 
 model = get_gemini_model()
 
