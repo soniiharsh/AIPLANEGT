@@ -23,7 +23,6 @@ sympy
 
 streamlit
 python-dotenv
-google-generativeai  # ✅ CORRECT package
 streamlit>=1.31.0
 google-generativeai>=0.3.0
 python-dotenv>=1.0.0
