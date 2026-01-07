@@ -20,3 +20,7 @@ Pillow
 numpy
 pandas
 sympy
+
+streamlit
+google-generativeai
+python-dotenv
