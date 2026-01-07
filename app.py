@@ -1,4 +1,6 @@
 import streamlit as st
+st.error("🚨 THIS IS THE FILE BEING EXECUTED")
+st.stop()
 import json
 import google.generativeai as genai
 import os
