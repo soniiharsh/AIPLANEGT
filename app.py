@@ -7,24 +7,24 @@ import google.generativeai as genai
 from multimodal.ocr_processor import OCRProcessor
 from multimodal.asr_processor import ASRProcessor
 
-# ----------------------------------
+# -------------------------------------------------
 # Page Config
-# ----------------------------------
+# -------------------------------------------------
 st.set_page_config(
     page_title="Math Mentor",
     page_icon="🧮",
     layout="wide"
 )
 
-# ----------------------------------
+# -------------------------------------------------
 # Gemini Setup (FREE)
-# ----------------------------------
+# -------------------------------------------------
 @st.cache_resource
 def load_gemini():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         st.error("⚠️ GEMINI_API_KEY not found")
-        st.info("Get a free key at https://aistudio.google.com/app/apikey")
+        st.info("Get a free key from https://aistudio.google.com/app/apikey")
         st.stop()
 
     genai.configure(api_key=api_key)
@@ -46,18 +46,18 @@ def call_gemini(prompt, max_tokens=2000):
         st.error(f"Gemini API error: {e}")
         return None
 
-# ----------------------------------
-# Load OCR / ASR
-# ----------------------------------
+# -------------------------------------------------
+# Load OCR / ASR (SAFE)
+# -------------------------------------------------
 @st.cache_resource
 def load_processors():
     return OCRProcessor(), ASRProcessor()
 
 ocr, asr = load_processors()
 
-# ----------------------------------
+# -------------------------------------------------
 # Session State
-# ----------------------------------
+# -------------------------------------------------
 if "memory" not in st.session_state:
     st.session_state.memory = []
 
@@ -67,15 +67,15 @@ if "agent_trace" not in st.session_state:
 if "show_feedback" not in st.session_state:
     st.session_state.show_feedback = False
 
-# ----------------------------------
+# -------------------------------------------------
 # Header
-# ----------------------------------
+# -------------------------------------------------
 st.title("🧮 Math Mentor")
 st.caption("Reliable AI Math Tutor • RAG + Agents + HITL + Memory (FREE Gemini)")
 
-# ----------------------------------
+# -------------------------------------------------
 # Sidebar
-# ----------------------------------
+# -------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Settings")
 
@@ -94,21 +94,21 @@ with st.sidebar:
     st.metric("Success Rate", f"{success_rate:.0f}%")
 
     st.divider()
-    st.info("🆓 Powered by FREE Gemini API")
+    st.info("🆓 Powered by FREE Google Gemini API")
 
     if st.button("🗑️ Clear Memory"):
         st.session_state.memory.clear()
         st.session_state.agent_trace.clear()
         st.rerun()
 
-# ----------------------------------
+# -------------------------------------------------
 # Layout
-# ----------------------------------
+# -------------------------------------------------
 col1, col2 = st.columns([1, 1])
 
-# ================================
+# =================================================
 # INPUT COLUMN
-# ================================
+# =================================================
 with col1:
     st.header("📝 Input")
     user_input = None
@@ -129,20 +129,33 @@ with col1:
         if uploaded_file:
             st.image(uploaded_file, caption="Uploaded Image")
 
-            with st.spinner("Extracting text using OCR..."):
+            with st.spinner("Attempting OCR..."):
                 ocr_result = ocr.process_image(uploaded_file)
 
-            if ocr_result["needs_review"]:
+            # 🔑 CRITICAL: handle missing Tesseract
+            if not ocr_result.get("ocr_available", True):
                 st.warning(
-                    f"Low OCR confidence ({ocr_result['confidence']:.2f}). "
-                    "Please review extracted text."
+                    "OCR engine not available in this environment.\n\n"
+                    "Please type the problem manually (HITL enabled)."
                 )
 
-            user_input = st.text_area(
-                "Extracted text (edit if needed)",
-                value=ocr_result["text"],
-                height=180
-            )
+                user_input = st.text_area(
+                    "Type the problem from the image:",
+                    height=180
+                )
+
+            else:
+                if ocr_result["needs_review"]:
+                    st.warning(
+                        f"Low OCR confidence ({ocr_result['confidence']:.2f}). "
+                        "Please review extracted text."
+                    )
+
+                user_input = st.text_area(
+                    "Extracted text (edit if needed)",
+                    value=ocr_result["text"],
+                    height=180
+                )
 
     elif input_mode == "Audio (ASR)":
         audio_file = st.file_uploader(
@@ -166,9 +179,9 @@ with col1:
         use_container_width=True
     )
 
-# ================================
+# =================================================
 # SOLUTION COLUMN
-# ================================
+# =================================================
 with col2:
     st.header("✨ Solution")
 
@@ -177,9 +190,9 @@ with col2:
 
         with st.status("🤖 Running multi-agent pipeline...", expanded=True):
 
-            # ---------------------------
+            # -------------------------------
             # Parser Agent
-            # ---------------------------
+            # -------------------------------
             st.write("🔍 Parser Agent")
             parser_prompt = f"""
 Parse the following math problem into JSON ONLY.
@@ -218,30 +231,31 @@ JSON format:
                 st.error(parsed["clarification_reason"])
                 st.stop()
 
-            # ---------------------------
+            # -------------------------------
             # Router Agent
-            # ---------------------------
+            # -------------------------------
             st.write("🧭 Router Agent")
             route = parsed.get("topic", "math")
             st.session_state.agent_trace.append(
                 {"agent": "Router", "route": route}
             )
 
-            # ---------------------------
+            # -------------------------------
             # RAG (Explicit Context)
-            # ---------------------------
+            # -------------------------------
             st.write("📚 RAG Retrieval")
             knowledge_context = f"""
 Topic: {route}
+
 Use relevant formulas, constraints, and common mistakes.
 """
             st.session_state.agent_trace.append(
                 {"agent": "RAG", "status": "retrieved"}
             )
 
-            # ---------------------------
+            # -------------------------------
             # Solver Agent
-            # ---------------------------
+            # -------------------------------
             st.write("🧮 Solver Agent")
             solver_prompt = f"""
 Solve step by step.
@@ -263,9 +277,9 @@ FORMULAS USED:
                 {"agent": "Solver", "status": "complete"}
             )
 
-            # ---------------------------
+            # -------------------------------
             # Verifier Agent
-            # ---------------------------
+            # -------------------------------
             st.write("✅ Verifier Agent")
             verifier_prompt = f"""
 Verify the solution below.
@@ -302,9 +316,9 @@ Return JSON only:
                 {"agent": "Verifier", "output": verification}
             )
 
-        # ---------------------------
+        # -------------------------------
         # OUTPUT
-        # ---------------------------
+        # -------------------------------
         st.subheader("📊 Result")
 
         if verification["is_correct"]:
@@ -316,9 +330,9 @@ Return JSON only:
 
         st.markdown(solution)
 
-        # ---------------------------
+        # -------------------------------
         # HITL FEEDBACK
-        # ---------------------------
+        # -------------------------------
         st.divider()
         st.subheader("💬 Human Feedback")
 
@@ -359,9 +373,9 @@ Return JSON only:
                 st.success("Feedback recorded")
                 st.rerun()
 
-# ----------------------------------
+# -------------------------------------------------
 # MEMORY VIEW
-# ----------------------------------
+# -------------------------------------------------
 if st.session_state.memory:
     st.divider()
     st.subheader("🧠 Memory")
@@ -373,8 +387,8 @@ if st.session_state.memory:
             st.text(m["input"][:120])
             st.divider()
 
-# ----------------------------------
+# -------------------------------------------------
 # Footer
-# ----------------------------------
+# -------------------------------------------------
 st.divider()
 st.caption("Math Mentor • Reliable AI Systems Demo • 2026")
