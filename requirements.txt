@@ -24,3 +24,5 @@ sympy
 streamlit
 google-generativeai
 python-dotenv
+
+google-genai>=0.3.0
