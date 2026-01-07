@@ -4,24 +4,27 @@ import os
 from datetime import datetime
 import google.generativeai as genai
 
-# -------------------------------
-# Page Configuration
-# -------------------------------
+from multimodal.ocr_processor import OCRProcessor
+from multimodal.asr_processor import ASRProcessor
+
+# ----------------------------------
+# Page Config
+# ----------------------------------
 st.set_page_config(
     page_title="Math Mentor",
     page_icon="🧮",
     layout="wide"
 )
 
-# -------------------------------
-# Gemini Configuration (FREE)
-# -------------------------------
+# ----------------------------------
+# Gemini Setup (FREE)
+# ----------------------------------
 @st.cache_resource
 def load_gemini():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         st.error("⚠️ GEMINI_API_KEY not found")
-        st.info("Get a free key from: https://aistudio.google.com/app/apikey")
+        st.info("Get a free key at https://aistudio.google.com/app/apikey")
         st.stop()
 
     genai.configure(api_key=api_key)
@@ -35,7 +38,7 @@ def call_gemini(prompt, max_tokens=2000):
             prompt,
             generation_config={
                 "temperature": 0.2,
-                "max_output_tokens": max_tokens,
+                "max_output_tokens": max_tokens
             }
         )
         return response.text
@@ -43,9 +46,18 @@ def call_gemini(prompt, max_tokens=2000):
         st.error(f"Gemini API error: {e}")
         return None
 
-# -------------------------------
+# ----------------------------------
+# Load OCR / ASR
+# ----------------------------------
+@st.cache_resource
+def load_processors():
+    return OCRProcessor(), ASRProcessor()
+
+ocr, asr = load_processors()
+
+# ----------------------------------
 # Session State
-# -------------------------------
+# ----------------------------------
 if "memory" not in st.session_state:
     st.session_state.memory = []
 
@@ -55,15 +67,15 @@ if "agent_trace" not in st.session_state:
 if "show_feedback" not in st.session_state:
     st.session_state.show_feedback = False
 
-# -------------------------------
+# ----------------------------------
 # Header
-# -------------------------------
+# ----------------------------------
 st.title("🧮 Math Mentor")
-st.caption("Reliable AI Math Tutor | RAG + Agents + HITL + Memory (FREE Gemini API)")
+st.caption("Reliable AI Math Tutor • RAG + Agents + HITL + Memory (FREE Gemini)")
 
-# -------------------------------
+# ----------------------------------
 # Sidebar
-# -------------------------------
+# ----------------------------------
 with st.sidebar:
     st.header("⚙️ Settings")
 
@@ -75,75 +87,107 @@ with st.sidebar:
     st.divider()
 
     solved = len(st.session_state.memory)
-    correct = len([m for m in st.session_state.memory if m.get("is_correct")])
+    correct = len([m for m in st.session_state.memory if m["is_correct"]])
     success_rate = (correct / max(solved, 1)) * 100
 
     st.metric("Problems Solved", solved)
     st.metric("Success Rate", f"{success_rate:.0f}%")
 
     st.divider()
-
-    st.info("🆓 Powered by FREE Google Gemini API")
+    st.info("🆓 Powered by FREE Gemini API")
 
     if st.button("🗑️ Clear Memory"):
         st.session_state.memory.clear()
         st.session_state.agent_trace.clear()
         st.rerun()
 
-# -------------------------------
-# Main Layout
-# -------------------------------
+# ----------------------------------
+# Layout
+# ----------------------------------
 col1, col2 = st.columns([1, 1])
 
-# ===============================
+# ================================
 # INPUT COLUMN
-# ===============================
+# ================================
 with col1:
     st.header("📝 Input")
-
     user_input = None
 
     if input_mode == "Text":
         user_input = st.text_area(
-            "Enter the math problem",
+            "Enter math problem",
             height=200,
-            placeholder="A coin is tossed 5 times. Find the probability of exactly 3 heads."
+            placeholder="A coin is tossed 5 times. Find probability of exactly 3 heads."
         )
 
     elif input_mode == "Image (OCR)":
-        st.warning("OCR stub active (HITL enabled)")
-        st.file_uploader("Upload image", type=["jpg", "png"])
-        user_input = st.text_area("Type / correct extracted text")
+        uploaded_file = st.file_uploader(
+            "Upload image",
+            type=["jpg", "png", "jpeg"]
+        )
+
+        if uploaded_file:
+            st.image(uploaded_file, caption="Uploaded Image")
+
+            with st.spinner("Extracting text using OCR..."):
+                ocr_result = ocr.process_image(uploaded_file)
+
+            if ocr_result["needs_review"]:
+                st.warning(
+                    f"Low OCR confidence ({ocr_result['confidence']:.2f}). "
+                    "Please review extracted text."
+                )
+
+            user_input = st.text_area(
+                "Extracted text (edit if needed)",
+                value=ocr_result["text"],
+                height=180
+            )
 
     elif input_mode == "Audio (ASR)":
-        st.warning("ASR stub active (HITL enabled)")
-        st.file_uploader("Upload audio", type=["mp3", "wav"])
-        user_input = st.text_area("Type / correct transcript")
+        audio_file = st.file_uploader(
+            "Upload audio",
+            type=["mp3", "wav", "m4a"]
+        )
 
-    solve_clicked = st.button("🚀 Solve", type="primary", use_container_width=True)
+        if audio_file:
+            with st.spinner("Transcribing audio..."):
+                asr_result = asr.process_audio(audio_file)
 
-# ===============================
+            user_input = st.text_area(
+                "Transcript (edit if needed)",
+                value=asr_result["text"],
+                height=180
+            )
+
+    solve_clicked = st.button(
+        "🚀 Solve",
+        type="primary",
+        use_container_width=True
+    )
+
+# ================================
 # SOLUTION COLUMN
-# ===============================
+# ================================
 with col2:
     st.header("✨ Solution")
 
     if solve_clicked and user_input:
         st.session_state.agent_trace.clear()
 
-        with st.status("🤖 Running multi-agent pipeline...", expanded=True) as status:
+        with st.status("🤖 Running multi-agent pipeline...", expanded=True):
 
             # ---------------------------
-            # 1. Parser Agent
+            # Parser Agent
             # ---------------------------
             st.write("🔍 Parser Agent")
             parser_prompt = f"""
-Parse the following math problem into JSON only.
+Parse the following math problem into JSON ONLY.
 
 Problem:
 {user_input}
 
-Output JSON schema:
+JSON format:
 {{
   "problem_text": "...",
   "topic": "algebra | probability | calculus | linear_algebra",
@@ -155,7 +199,6 @@ Output JSON schema:
             parser_raw = call_gemini(parser_prompt, 800)
 
             try:
-                parser_raw = parser_raw.strip()
                 if "```" in parser_raw:
                     parser_raw = parser_raw.split("```")[1]
                 parsed = json.loads(parser_raw)
@@ -171,13 +214,12 @@ Output JSON schema:
                 {"agent": "Parser", "output": parsed}
             )
 
-            if parsed.get("needs_clarification"):
-                st.error(f"Needs clarification: {parsed.get('clarification_reason')}")
-                status.update(state="error")
+            if parsed["needs_clarification"]:
+                st.error(parsed["clarification_reason"])
                 st.stop()
 
             # ---------------------------
-            # 2. Router Agent
+            # Router Agent
             # ---------------------------
             st.write("🧭 Router Agent")
             route = parsed.get("topic", "math")
@@ -186,25 +228,23 @@ Output JSON schema:
             )
 
             # ---------------------------
-            # 3. RAG (Simulated but Explicit)
+            # RAG (Explicit Context)
             # ---------------------------
             st.write("📚 RAG Retrieval")
             knowledge_context = f"""
 Topic: {route}
-
-Key formulas and rules relevant to this topic.
-Check constraints, domains, and common mistakes.
+Use relevant formulas, constraints, and common mistakes.
 """
             st.session_state.agent_trace.append(
                 {"agent": "RAG", "status": "retrieved"}
             )
 
             # ---------------------------
-            # 4. Solver Agent
+            # Solver Agent
             # ---------------------------
             st.write("🧮 Solver Agent")
             solver_prompt = f"""
-Solve the problem step by step.
+Solve step by step.
 
 Context:
 {knowledge_context}
@@ -224,7 +264,7 @@ FORMULAS USED:
             )
 
             # ---------------------------
-            # 5. Verifier Agent
+            # Verifier Agent
             # ---------------------------
             st.write("✅ Verifier Agent")
             verifier_prompt = f"""
@@ -236,7 +276,7 @@ Problem:
 Solution:
 {solution}
 
-Output JSON only:
+Return JSON only:
 {{
   "is_correct": true,
   "confidence": 0.0,
@@ -262,8 +302,6 @@ Output JSON only:
                 {"agent": "Verifier", "output": verification}
             )
 
-            status.update(label="✅ Complete", state="complete")
-
         # ---------------------------
         # OUTPUT
         # ---------------------------
@@ -284,7 +322,7 @@ Output JSON only:
         st.divider()
         st.subheader("💬 Human Feedback")
 
-        if verification.get("needs_human_review") or verification["confidence"] < 0.8:
+        if verification["needs_human_review"] or verification["confidence"] < 0.8:
             st.warning("Human review recommended")
 
         col_a, col_b = st.columns(2)
@@ -321,9 +359,9 @@ Output JSON only:
                 st.success("Feedback recorded")
                 st.rerun()
 
-# -------------------------------
+# ----------------------------------
 # MEMORY VIEW
-# -------------------------------
+# ----------------------------------
 if st.session_state.memory:
     st.divider()
     st.subheader("🧠 Memory")
@@ -335,8 +373,8 @@ if st.session_state.memory:
             st.text(m["input"][:120])
             st.divider()
 
-# -------------------------------
-# FOOTER
-# -------------------------------
+# ----------------------------------
+# Footer
+# ----------------------------------
 st.divider()
 st.caption("Math Mentor • Reliable AI Systems Demo • 2026")
