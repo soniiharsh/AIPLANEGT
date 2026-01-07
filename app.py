@@ -14,7 +14,35 @@ def get_gemini_model():
         st.stop()
     
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-1.5-flash')  # Free & fast
+    
+    # Try different model names (Google keeps changing them!)
+    models_to_try = [
+        'gemini-1.5-flash',
+        'gemini-pro',
+        'models/gemini-1.5-flash',
+        'models/gemini-pro'
+    ]
+    
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            # Test if it works
+            test_response = model.generate_content("Say 'OK'")
+            st.success(f"✅ Using model: {model_name}")
+            return model
+        except Exception as e:
+            continue
+    
+    # If all fail, show available models
+    st.error("❌ Could not find a working Gemini model")
+    st.write("Available models:")
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                st.write(f"- {m.name}")
+    except:
+        pass
+    st.stop()
 
 model = get_gemini_model()
 
