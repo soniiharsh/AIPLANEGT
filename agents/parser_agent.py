@@ -1,43 +1,66 @@
-from anthropic import Anthropic
+import google.generativeai as genai
 import json
 
+
 class ParserAgent:
-    def __init__(self, api_key, model):
-        self.client = Anthropic(api_key=api_key)
-        self.model = model
-    
-    def parse(self, raw_text):
-        """Convert raw input to structured problem"""
-        prompt = f"""Parse this math problem into a structured format:
+    def __init__(self, api_key, model="gemini-1.5-flash"):
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(model)
 
-Problem: {raw_text}
-
-Output as JSON with:
-- problem_text: cleaned problem statement
-- topic: algebra/probability/calculus/linear_algebra
-- variables: list of variables
-- constraints: list of constraints
-- needs_clarification: boolean
-- clarification_reason: string if needs_clarification is true
-
-Be thorough in extracting all information."""
-
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
+        # Hard verification (fail fast)
         try:
-            parsed = json.loads(response.content[0].text)
-            return parsed
-        except:
-            # Fallback if JSON parsing fails
+            self.model.generate_content("Reply with OK only.")
+        except Exception as e:
+            raise RuntimeError(f"Gemini API key verification failed: {e}")
+
+    def parse(self, raw_text):
+        """Convert raw math input into structured JSON"""
+
+        prompt = f"""
+Parse the following math problem and return ONLY valid JSON.
+Do NOT include explanations, markdown, or extra text.
+
+Problem:
+{raw_text}
+
+JSON schema:
+{{
+  "problem_text": "string",
+  "topic": "algebra | probability | calculus | linear_algebra",
+  "variables": ["string"],
+  "constraints": ["string"],
+  "needs_clarification": boolean,
+  "clarification_reason": "string"
+}}
+
+Return ONLY the JSON object.
+"""
+
+        try:
+            response = self.model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.0,
+                    "max_output_tokens": 1000
+                }
+            )
+
+            # Gemini-safe text extraction
+            raw_output = response.text.strip()
+
+            # Defensive cleanup (Gemini may still fence JSON)
+            if "```" in raw_output:
+                raw_output = raw_output.split("```")[1].strip()
+
+            return json.loads(raw_output)
+
+        except Exception:
+            # Fallback (never crash pipeline)
             return {
                 "problem_text": raw_text,
                 "topic": "unknown",
                 "variables": [],
                 "constraints": [],
                 "needs_clarification": True,
-                "clarification_reason": "Failed to parse problem structure"
+                "clarification_reason": "Failed to parse structured output"
             }
