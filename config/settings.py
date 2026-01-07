@@ -12,7 +12,7 @@ class Config:
     # ----------------------------
     # Gemini Model Settings
     # ----------------------------
-    LLM_MODEL = "gemini-1.5-flash"   # fast, free-tier friendly
+    LLM_MODEL = "gemini-pro"   # fast, free-tier friendly
     # Alternative (higher reasoning, slower/costlier):
     # LLM_MODEL = "gemini-1.5-pro"
 

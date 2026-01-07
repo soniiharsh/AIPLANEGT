@@ -1,4 +1,6 @@
-import google.generativeai as genai
+# ✅ USE everywhere
+from google import genai
+
 import json
 
 
