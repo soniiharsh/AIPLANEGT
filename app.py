@@ -1,11 +1,8 @@
 import streamlit as st
 import json
-# ✅ USE everywhere
-from google import genai
-
+import google.generativeai as genai  # ✅ CORRECT import
 import os
 from datetime import datetime
-
 
 # Configure Gemini (FREE!)
 @st.cache_resource
@@ -13,13 +10,11 @@ def get_gemini_model():
     api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         st.error("⚠️ GEMINI_API_KEY not found in secrets!")
-        st.info("Get free API key at: https://makersuite.google.com/app/apikey")
+        st.info("Get free API key at: https://aistudio.google.com/app/apikey")
         st.stop()
     
     genai.configure(api_key=api_key)
-    # Use the latest free model - gemini-1.5-flash or gemini-1.5-pro
     return genai.GenerativeModel('gemini-1.5-flash')  # Free & fast
-    # OR use: genai.GenerativeModel('gemini-1.5-pro') for better quality
 
 model = get_gemini_model()
 
